@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from app.db import FIXTURES_DIR, connect
+from app.modules.dup_hop_quarantine import schema as dup_schema
 
 
 SCHEMA = """
@@ -62,6 +63,7 @@ EVENT_STATUS = {
 def init_db():
     conn = connect()
     conn.executescript(SCHEMA)
+    dup_schema.ensure_tables(conn)
     n = conn.execute("SELECT COUNT(*) AS c FROM waybills").fetchone()["c"]
     if n == 0:
         _seed_fixtures(conn)

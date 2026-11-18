@@ -35,6 +35,7 @@ watch(selected, (id) => {
 
 const hops = computed(() => detail.value?.hops || [])
 const proof = computed(() => detail.value?.proof)
+const dupGroups = computed(() => detail.value?.dup_groups || [])
 </script>
 
 <template>
@@ -76,6 +77,7 @@ const proof = computed(() => detail.value?.proof)
           </div>
         </div>
         <p v-else class="muted">无正式轨迹点</p>
+        <p class="axis-note">正式轴仅含正式时间线点；重复组成员一律在隔离区，不在此轴出现。</p>
       </section>
 
       <aside class="pane inspect-pane">
@@ -93,6 +95,14 @@ const proof = computed(() => detail.value?.proof)
           <dt>写入</dt><dd>{{ proof.created_at }}</dd>
         </dl>
         <p v-else class="muted">暂无证明</p>
+        <h2>重复组隔离</h2>
+        <template v-if="dupGroups.length">
+          <div class="dup-item" v-for="g in dupGroups" :key="g.id">
+            <span class="dup-key">{{ g.event_ts }} · {{ g.location_code }} · {{ g.event_code }}</span>
+            <span class="dup-meta">{{ g.id }} · {{ g.member_count }} 点整组隔离，未入正式轴</span>
+          </div>
+        </template>
+        <p v-else class="muted">无重复组</p>
       </aside>
 
       <footer class="pane dot-rail">
@@ -112,3 +122,29 @@ const proof = computed(() => detail.value?.proof)
     </div>
   </div>
 </template>
+
+<style scoped>
+.axis-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dup-item {
+  display: block;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--amber-soft);
+  background: #fbf6ea;
+}
+.dup-key {
+  display: block;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.dup-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+</style>

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
 from app.db import connect
+from app.modules.dup_hop_quarantine import proofs as dup_proofs
+from app.modules.dup_hop_quarantine import schema as dup_schema
 from app.services import ingest as ingest_svc
 from app.services import timeline as timeline_svc
 
@@ -11,6 +13,7 @@ router = APIRouter(prefix="/api")
 def overview():
     conn = connect()
     try:
+        dup_schema.ensure_tables(conn)
         return {
             "waybills": conn.execute("SELECT COUNT(*) AS c FROM waybills").fetchone()["c"],
             "hops_primary": conn.execute(
@@ -19,7 +22,7 @@ def overview():
             "hops_sidecar": conn.execute(
                 "SELECT COUNT(*) AS c FROM hops WHERE channel='sidecar'"
             ).fetchone()["c"],
-            "quarantine": conn.execute("SELECT COUNT(*) AS c FROM quarantine").fetchone()["c"],
+            "quarantine": conn.execute("SELECT COUNT(*) AS c FROM dup_groups").fetchone()["c"],
         }
     finally:
         conn.close()
@@ -41,6 +44,7 @@ def list_waybills():
 def waybill_timeline(waybill_id: str):
     conn = connect()
     try:
+        dup_schema.ensure_tables(conn)
         wb = conn.execute("SELECT * FROM waybills WHERE id=?", (waybill_id,)).fetchone()
         if not wb:
             raise HTTPException(404, "运单不存在")
@@ -53,6 +57,7 @@ def waybill_timeline(waybill_id: str):
             "waybill": dict(wb),
             "hops": hops,
             "proof": dict(proof) if proof else None,
+            "dup_groups": dup_proofs.list_groups(conn, waybill_id),
         }
     finally:
         conn.close()
@@ -62,10 +67,32 @@ def waybill_timeline(waybill_id: str):
 def list_quarantine():
     conn = connect()
     try:
-        rows = conn.execute(
-            "SELECT id, waybill_id, reason, member_json, created_at FROM quarantine ORDER BY id DESC"
-        ).fetchall()
-        return [dict(r) for r in rows]
+        dup_schema.ensure_tables(conn)
+        return dup_proofs.quarantine_rows(conn)
+    finally:
+        conn.close()
+
+
+@router.get("/dup-groups")
+def list_dup_groups(waybill_id: str | None = None):
+    conn = connect()
+    try:
+        dup_schema.ensure_tables(conn)
+        return dup_proofs.list_groups(conn, waybill_id)
+    finally:
+        conn.close()
+
+
+@router.get("/dup-groups/{group_id}/proof")
+def dup_group_proof(group_id: str):
+    """重复组证明（只读）：运单、重复键、成员列表、处置结论。"""
+    conn = connect()
+    try:
+        dup_schema.ensure_tables(conn)
+        proof = dup_proofs.get_proof(conn, group_id)
+        if not proof:
+            raise HTTPException(404, "重复组不存在")
+        return proof
     finally:
         conn.close()
 
